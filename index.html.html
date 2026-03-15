@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HussamCRM v4</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0c0f1a;--surface:#141828;--surface2:#1c2235;--surface3:#232b42;
+  --border:#2a3350;--accent:#4f8cff;--accent2:#7c5cfc;--green:#22d98a;
+  --yellow:#f5c842;--red:#ff5c7c;--orange:#ff9a3c;--text:#e8eaf6;--muted:#7b85a8;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* SYNC BAR */
+#sync-bar{position:fixed;top:0;left:220px;right:0;z-index:200;padding:6px 18px;font-size:.73rem;display:flex;align-items:center;gap:8px;}
+#sync-bar.synced{background:rgba(34,217,138,.08);color:var(--green);border-bottom:1px solid rgba(34,217,138,.12);}
+#sync-bar.syncing{background:rgba(79,140,255,.07);color:var(--accent);border-bottom:1px solid rgba(79,140,255,.12);}
+#sync-bar.error{background:rgba(255,92,124,.09);color:var(--red);border-bottom:1px solid rgba(255,92,124,.15);}
+.sdot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.sdot.pulse{animation:pulse 1.4s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* SIDEBAR */
+.sidebar{position:fixed;left:0;top:0;width:220px;height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;overflow-y:auto;}
+.logo{padding:22px 18px 14px;border-bottom:1px solid var(--border);}
+.logo-txt{font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:#fff;}
+.logo-txt em{color:var(--accent);font-style:normal;}
+.logo-sub{font-size:.62rem;color:var(--muted);margin-top:1px;}
+.nav{flex:1;padding:10px 8px;display:flex;flex-direction:column;gap:2px;}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--muted);font-size:.8rem;transition:all .18s;font-weight:500;}
+.ni:hover{background:var(--surface2);color:var(--text);}
+.ni.active{background:linear-gradient(135deg,rgba(79,140,255,.16),rgba(124,92,252,.1));color:#fff;}
+.ni .ic{font-size:.95rem;width:17px;text-align:center;}
+.nsec{font-size:.62rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:10px 10px 3px;}
+.sb-bottom{padding:9px;border-top:1px solid var(--border);}
+.uchip{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;background:var(--surface2);}
+.uav{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:.78rem;flex-shrink:0;}
+.uname{font-size:.8rem;font-weight:600;}
+.urole{font-size:.63rem;color:var(--muted);}
+
+/* MAIN */
+.main{margin-left:220px;padding:44px 26px 26px;}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:10px;}
+.pg-title{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;}
+.pg-title span{color:var(--accent);}
+.tr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 15px;border-radius:8px;border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:.8rem;font-weight:500;transition:all .18s;}
+.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;}
+.btn-primary:hover{opacity:.88;transform:translateY(-1px);}
+.btn-ghost{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+.btn-ghost:hover{background:var(--surface3);}
+.btn-danger{background:rgba(255,92,124,.13);color:var(--red);border:1px solid rgba(255,92,124,.25);}
+.btn-success{background:rgba(34,217,138,.13);color:var(--green);border:1px solid rgba(34,217,138,.25);}
+.btn-sm{padding:4px 10px;font-size:.72rem;}
+
+/* STATS */
+.stats-row{display:grid;gap:12px;margin-bottom:22px;}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;position:relative;overflow:hidden;}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--accent));}
+.sl{font-size:.67rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+.sv{font-family:'Syne',sans-serif;font-size:1.65rem;font-weight:800;}
+.ss{font-size:.68rem;color:var(--muted);margin-top:2px;}
+.si{position:absolute;top:12px;right:12px;font-size:1.3rem;opacity:.14;}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.card-p{padding:14px 16px;}
+.two-col{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:20px;}
+.sec-title{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;margin-bottom:11px;display:flex;align-items:center;gap:7px;}
+.badge{font-size:.63rem;background:var(--surface3);color:var(--muted);padding:1px 7px;border-radius:20px;}
+
+/* TASKS */
+.task-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;transition:border-color .2s;}
+.task-card:hover{border-color:rgba(79,140,255,.4);}
+.task-card.done-card{opacity:.6;}
+.task-head{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;cursor:pointer;}
+.tc-check{width:16px;height:16px;border-radius:4px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .18s;cursor:pointer;font-size:.6rem;margin-top:2px;}
+.tc-check.done{background:var(--green);border-color:var(--green);color:#fff;}
+.tc-info{flex:1;min-width:0;}
+.tc-title{font-size:.85rem;font-weight:600;margin-bottom:3px;}
+.tc-title.done{text-decoration:line-through;color:var(--muted);}
+.tc-meta{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:4px;}
+.tc-next{font-size:.7rem;color:var(--accent);margin-top:2px;}
+.tc-note{font-size:.68rem;color:var(--muted);margin-top:2px;background:var(--surface3);padding:2px 7px;border-radius:4px;display:inline-block;}
+.tc-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
+.tc-amount{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--green);}
+.tc-actions{display:flex;gap:3px;opacity:0;transition:opacity .18s;}
+.task-card:hover .tc-actions{opacity:1;}
+.tact-btn{background:none;border:none;color:var(--muted);cursor:pointer;padding:2px 5px;border-radius:3px;font-size:.75rem;}
+.tact-btn:hover{color:var(--text);background:var(--surface3);}
+
+/* SUBTASKS */
+.subtasks-area{border-top:1px solid var(--border);padding:10px 15px 12px 42px;background:rgba(0,0,0,.15);}
+.st-title{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:8px;font-weight:600;}
+.subtask-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);}
+.subtask-item:last-of-type{border-bottom:none;}
+.st-check{width:13px;height:13px;border-radius:3px;border:1.5px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.55rem;transition:all .15s;}
+.st-check.done{background:var(--green);border-color:var(--green);color:#fff;}
+.st-text{font-size:.78rem;flex:1;}
+.st-text.done{text-decoration:line-through;color:var(--muted);}
+.st-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;opacity:0;transition:opacity .15s;}
+.subtask-item:hover .st-del{opacity:1;}
+.st-add-row{display:flex;gap:6px;margin-top:8px;}
+.st-add-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.77rem;outline:none;}
+.st-add-input:focus{border-color:var(--accent);}
+
+/* PILLS */
+.pill{font-size:.64rem;padding:2px 8px;border-radius:20px;font-weight:500;white-space:nowrap;}
+.pill-blue{background:rgba(79,140,255,.14);color:var(--accent);}
+.pill-purple{background:rgba(124,92,252,.14);color:var(--accent2);}
+.pill-green{background:rgba(34,217,138,.14);color:var(--green);}
+.pill-yellow{background:rgba(245,200,66,.14);color:var(--yellow);}
+.pill-red{background:rgba(255,92,124,.14);color:var(--red);}
+.pill-orange{background:rgba(255,154,60,.14);color:var(--orange);}
+.pill-ghost{background:var(--surface3);color:var(--muted);}
+
+/* DUE BADGES */
+.due-badge{font-size:.67rem;padding:2px 7px;border-radius:5px;font-weight:500;}
+.due-over{background:rgba(255,92,124,.14);color:var(--red);}
+.due-today{background:rgba(245,200,66,.14);color:var(--yellow);}
+.due-soon{background:rgba(79,140,255,.11);color:var(--accent);}
+.due-ok{background:var(--surface3);color:var(--muted);}
+
+/* STAGE BADGES */
+.sb{font-size:.64rem;padding:2px 8px;border-radius:20px;font-weight:600;white-space:nowrap;}
+.sb-qs{background:rgba(79,140,255,.14);color:var(--accent);}
+.sb-wp{background:rgba(245,200,66,.14);color:var(--yellow);}
+.sb-pr{background:rgba(255,154,60,.14);color:var(--orange);}
+.sb-id{background:rgba(124,92,252,.14);color:var(--accent2);}
+.sb-ip{background:rgba(255,92,124,.14);color:var(--red);}
+.sb-ws{background:rgba(34,217,138,.14);color:var(--green);}
+.sb-wg{background:rgba(255,92,124,.2);color:var(--red);}
+.sb-wcf{background:rgba(245,200,66,.2);color:var(--yellow);}
+.sb-done{background:rgba(34,217,138,.2);color:var(--green);}
+
+/* PIPELINE */
+.pipeline{display:flex;gap:11px;overflow-x:auto;padding-bottom:10px;}
+.pipe-col{min-width:190px;max-width:190px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:11px;flex-shrink:0;}
+.pipe-hdr{font-size:.72rem;font-weight:700;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;}
+.pipe-cnt{background:var(--surface3);border-radius:99px;padding:1px 6px;font-size:.63rem;color:var(--muted);}
+.pipe-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;margin-bottom:6px;cursor:pointer;transition:all .18s;}
+.pipe-card:hover{border-color:var(--accent);transform:translateY(-1px);}
+.pipe-code{font-size:.62rem;color:var(--accent);font-family:monospace;margin-bottom:2px;}
+.pipe-title{font-size:.75rem;font-weight:600;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.pipe-meta{font-size:.65rem;color:var(--muted);}
+.pipe-amount{font-size:.67rem;color:var(--green);margin-top:3px;font-weight:600;}
+
+/* CHART */
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;}
+.chart-tabs{display:flex;gap:5px;margin-bottom:12px;}
+.ctab{padding:4px 12px;border-radius:20px;font-size:.72rem;cursor:pointer;border:1px solid var(--border);color:var(--muted);transition:all .18s;}
+.ctab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+/* FORM / MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:1000;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;width:540px;max-width:96vw;max-height:92vh;overflow-y:auto;}
+.modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;margin-bottom:16px;}
+.fg{margin-bottom:12px;}
+.fl{font-size:.7rem;color:var(--muted);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.05em;}
+.fi,.fs,.fta{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.8rem;outline:none;}
+.fi:focus,.fs:focus,.fta:focus{border-color:var(--accent);}
+.fta{resize:vertical;min-height:60px;}
+.fs option{background:var(--surface2);}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+
+/* ALERTS */
+.alert{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;margin-bottom:10px;font-size:.79rem;}
+.alert-warn{background:rgba(245,200,66,.08);border:1px solid rgba(245,200,66,.2);color:var(--yellow);}
+.alert-danger{background:rgba(255,92,124,.08);border:1px solid rgba(255,92,124,.2);color:var(--red);}
+
+/* FILTERS */
+.filt-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px;align-items:center;}
+.fsearch{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.79rem;outline:none;width:200px;}
+.fsearch:focus{border-color:var(--accent);}
+.fsel{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 11px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:.78rem;outline:none;}
+.fsel:focus{border-color:var(--accent);}
+.fsel option{background:var(--surface2);}
+
+/* BULK */
+.bulk-bar{display:none;align-items:center;gap:9px;padding:8px 14px;background:rgba(79,140,255,.07);border:1px solid rgba(79,140,255,.16);border-radius:9px;margin-bottom:10px;font-size:.79rem;}
+.bulk-bar.vis{display:flex;}
+.sel-btn{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:5px 10px;color:var(--text);font-size:.72rem;cursor:pointer;}
+.sel-btn.active{background:rgba(79,140,255,.14);border-color:var(--accent);color:var(--accent);}
+.tsel-box{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.55rem;margin-top:2px;}
+.tsel-box.sel{background:var(--accent);border-color:var(--accent);color:#fff;}
+.task-card.sel-row{border-color:var(--accent);background:rgba(79,140,255,.04);}
+
+/* NOTES */
+.note-item{padding:10px;border:1px solid var(--border);border-radius:8px;margin-top:8px;background:var(--surface2);}
+.note-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+
+/* AUTOMATION */
+.auto-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px;display:flex;align-items:flex-start;gap:12px;}
+.auto-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.95rem;flex-shrink:0;}
+.toggle{width:34px;height:19px;border-radius:99px;background:var(--surface3);cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;border:none;}
+.toggle.on{background:var(--green);}
+.tknob{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;transition:left .18s;pointer-events:none;}
+.toggle.on .tknob{left:17px;}
+
+/* LOADING */
+#ls{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;}
+.ll{font-family:'Syne',sans-serif;font-weight:800;font-size:1.9rem;color:#fff;}
+.ll em{color:var(--accent);font-style:normal;}
+.lb{width:170px;height:3px;background:var(--surface3);border-radius:99px;overflow:hidden;}
+.lf{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));animation:lload 2s ease forwards;}
+@keyframes lload{from{width:0}to{width:100%}}
+
+.view{display:none;}
+.view.active{display:block;}
+@keyframes fu{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:translateY(0)}}
+.fu{animation:fu .28s ease forwards;}
+.empty{text-align:center;padding:32px 18px;color:var(--muted);font-size:.8rem;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:99px;}
+.typing{display:inline-flex;gap:3px;align-items:center;}
+.typing span{width:5px;height:5px;border-radius:50%;background:var(--accent);animation:tb .8s infinite;}
+.typing span:nth-child(2){animation-delay:.15s;}
+.typing span:nth-child(3){animation-delay:.3s;}
+@keyframes tb{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.twrap{overflow-x:auto;}
+</style>
+</head>
+<body>
+
+<div id="ls">
+  <div class="ll">Hussam<em>CRM</em></div>
+  <div class="lb"><div class="lf"></div></div>
+  <div style="font-size:.77rem;color:var(--muted);" id="ltxt">Connecting to cloud…</div>
+</div>
+
+<div id="sync-bar" class="syncing"><div class="sdot pulse"></div><span id="stxt">Connecting…</span></div>
+
+<nav class="sidebar">
+  <div class="logo">
+    <div class="logo-txt">Hussam<em>CRM</em></div>
+    <div class="logo-sub">v4.0 · Cloud Synced</div>
+  </div>
+  <div class="nav">
+    <div class="nsec">Main</div>
+    <div class="ni active" onclick="sv('dashboard',this)"><span class="ic">⚡</span> Dashboard</div>
+    <div class="ni" onclick="sv('tasks',this)"><span class="ic">✅</span> Tasks</div>
+    <div class="ni" onclick="sv('pipeline',this)"><span class="ic">📊</span> Pipeline</div>
+    <div class="nsec">Finance</div>
+    <div class="ni" onclick="sv('po',this)"><span class="ic">💰</span> PO Dashboard</div>
+    <div class="nsec">Tools</div>
+    <div class="ni" onclick="sv('accounts',this)"><span class="ic">🏢</span> Accounts</div>
+    <div class="ni" onclick="sv('automation',this)"><span class="ic">🤖</span> Automation</div>
+    <div class="ni" onclick="sv('notes',this)"><span class="ic">📝</span> Notes</div>
+    <div class="ni" onclick="sv('ai',this)"><span class="ic">✨</span> AI Assistant</div>
+  </div>
+  <div class="sb-bottom">
+    <div class="uchip"><div class="uav">H</div><div><div class="uname">Hussam</div><div class="urole">Account Manager</div></div></div>
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- DASHBOARD -->
+<div class="view active" id="view-dashboard">
+  <div class="topbar">
+    <div><div class="pg-title">Good morning, <span>Hussam</span> 👋</div><div style="font-size:.75rem;color:var(--muted);margin-top:2px;" id="today-date"></div></div>
+    <div class="tr">
+      <button class="btn btn-ghost" onclick="sv('tasks',document.querySelectorAll('.ni')[1])">🔔 <span id="notif-n">0</span> urgent</button>
+      <button class="btn btn-primary" onclick="openModal('task')">+ New Task</button>
+    </div>
+  </div>
+  <div id="dash-alerts"></div>
+  <div class="stats-row" style="grid-template-columns:repeat(5,1fr);">
+    <div class="sc" style="--ac:var(--accent)"><div class="sl">Total Tasks</div><div class="sv" id="d-total">—</div><div class="ss" id="d-total-s">Loading…</div><div class="si">📁</div></div>
+    <div class="sc" style="--ac:var(--yellow)"><div class="sl">Open Tasks</div><div class="sv" id="d-open">—</div><div class="ss" id="d-open-s">Loading…</div><div class="si">⏳</div></div>
+    <div class="sc" style="--ac:var(--red)"><div class="sl">Overdue</div><div class="sv" id="d-over">—</div><div class="ss">Need action now</div><div class="si">⚠️</div></div>
+    <div class="sc" style="--ac:var(--orange)"><div class="sl">Waiting PO</div><div class="sv" id="d-wpo">—</div><div class="ss">Chase clients</div><div class="si">💰</div></div>
+    <div class="sc" style="--ac:var(--green)"><div class="sl">Total Amount</div><div class="sv" id="d-amt">—</div><div class="ss">Open tasks</div><div class="si">📈</div></div>
+  </div>
+  <div class="two-col">
+    <div>
+      <div class="sec-title">Tasks by Stage</div>
+      <div class="chart-card"><canvas id="stage-chart" height="190"></canvas></div>
+    </div>
+    <div>
+      <div class="sec-title">Urgent Tasks</div>
+      <div id="dash-urgent"></div>
+    </div>
+  </div>
+  <div class="two-col">
+    <div>
+      <div class="sec-title">Recent Activity</div>
+      <div class="card" id="dash-activity"></div>
+    </div>
+    <div>
+      <div class="sec-title">Tasks by Client</div>
+      <div class="chart-card"><canvas id="client-chart" height="220"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- TASKS -->
+<div class="view" id="view-tasks">
+  <div class="topbar">
+    <div class="pg-title">Tasks <span id="task-badge" style="font-size:.95rem;color:var(--muted);font-weight:400"></span></div>
+    <div class="tr">
+      <button class="btn btn-success" onclick="exportExcel()">⬇️ Export</button>
+      <label class="btn btn-ghost" style="cursor:pointer;">📂 Import Excel<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcel(event)"></label>
+      <button class="sel-btn" id="sel-btn" onclick="toggleSel()">☑️ Select</button>
+      <button class="btn btn-primary" onclick="openModal('task')">+ New Task</button>
+    </div>
+  </div>
+  <div class="filt-row">
+    <input class="fsearch" id="t-search" placeholder="🔍 Search tasks…" oninput="renderTasks()">
+    <select class="fsel" id="t-client" onchange="renderTasks()"><option value="all">All Clients</option></select>
+    <select class="fsel" id="t-stage" onchange="renderTasks()">
+      <option value="all">All Stages</option>
+      <option>Quotation Sent</option><option>Waiting PO</option><option>PO Received</option>
+      <option>In Design</option><option>In Production</option><option>Waiting Samples</option>
+      <option>Waiting Client Feedback</option><option>Waiting GR</option><option>Done</option>
+    </select>
+    <select class="fsel" id="t-ws" onchange="renderTasks()"><option value="all">All Workstreams</option><option>Pillar</option><option>Catman</option><option>Maintenance</option></select>
+    <select class="fsel" id="t-due" onchange="renderTasks()"><option value="all">All Dates</option><option value="overdue">Overdue</option><option value="today">Today</option><option value="open">Open</option><option value="done">Done</option></select>
+  </div>
+  <div class="bulk-bar" id="bulk-bar">
+    <span style="font-weight:600;color:var(--accent);" id="bulk-cnt">0 selected</span>
+    <button class="btn btn-ghost btn-sm" onclick="selAll()">All</button>
+    <button class="btn btn-ghost btn-sm" onclick="clrSel()">Clear</button>
+    <button class="btn btn-danger btn-sm" style="margin-left:auto;" onclick="delSelected()">🗑 Delete</button>
+  </div>
+  <div id="tasks-list"></div>
+</div>
+
+<!-- PIPELINE -->
+<div class="view" id="view-pipeline">
+  <div class="topbar">
+    <div class="pg-title">Pipeline</div>
+    <div class="tr">
+      <select class="fsel" id="pipe-client" onchange="renderPipeline()"><option value="all">All Clients</option></select>
+      <select class="fsel" id="pipe-ws" onchange="renderPipeline()"><option value="all">All Workstreams</option><option>Pillar</option><option>Catman</option><option>Maintenance</option></select>
+    </div>
+  </div>
+  <div style="font-size:.75rem;color:var(--muted);margin-bottom:12px;">Each card = a task. Click to edit stage. Changing stage here syncs instantly with Tasks view.</div>
+  <div class="pipeline" id="pipeline-board"></div>
+</div>
+
+<!-- PO DASHBOARD -->
+<div class="view" id="view-po">
+  <div class="topbar"><div class="pg-title">PO Dashboard 💰</div></div>
+  <div class="stats-row" style="grid-template-columns:repeat(4,1fr);">
+    <div class="sc" style="--ac:var(--green)"><div class="sl">This Week</div><div class="sv" id="po-wk">—</div><div class="ss" id="po-wk-c">—</div><div class="si">📅</div></div>
+    <div class="sc" style="--ac:var(--accent)"><div class="sl">This Month</div><div class="sv" id="po-mo">—</div><div class="ss" id="po-mo-c">—</div><div class="si">📆</div></div>
+    <div class="sc" style="--ac:var(--accent2)"><div class="sl">This Year</div><div class="sv" id="po-yr">—</div><div class="ss" id="po-yr-c">—</div><div class="si">📊</div></div>
+    <div class="sc" style="--ac:var(--yellow)"><div class="sl">Waiting PO</div><div class="sv" id="po-wait">—</div><div class="ss">Projects pending</div><div class="si">⏳</div></div>
+  </div>
+  <div class="two-col">
+    <div>
+      <div class="sec-title">Amount Over Time</div>
+      <div class="chart-card">
+        <div class="chart-tabs">
+          <div class="ctab active" onclick="setPORange('week',this)">Week</div>
+          <div class="ctab" onclick="setPORange('month',this)">Month</div>
+          <div class="ctab" onclick="setPORange('year',this)">Year</div>
+        </div>
+        <canvas id="po-time-chart" height="200"></canvas>
+      </div>
+    </div>
+    <div>
+      <div class="sec-title">PO by Client</div>
+      <div class="chart-card"><canvas id="po-client-chart" height="240"></canvas></div>
+    </div>
+  </div>
+  <div class="sec-title">Tasks with PO Received</div>
+  <div class="card"><div class="twrap"><table id="po-table" style="width:100%;border-collapse:collapse;"></table></div></div>
+</div>
+
+<!-- ACCOUNTS -->
+<div class="view" id="view-accounts">
+  <div class="topbar"><div class="pg-title">Accounts</div><button class="btn btn-primary" onclick="openModal('account')">+ Add Account</button></div>
+  <div id="accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(265px,1fr));gap:13px;"></div>
+</div>
+
+<!-- AUTOMATION -->
+<div class="view" id="view-automation">
+  <div class="topbar"><div class="pg-title">Automation</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(295px,1fr));gap:13px;" id="auto-list"></div>
+</div>
+
+<!-- NOTES -->
+<div class="view" id="view-notes">
+  <div class="topbar"><div class="pg-title">Notes</div></div>
+  <div class="card card-p">
+    <div style="display:flex;gap:8px;align-items:flex-start;">
+      <select class="fsel" style="width:145px;" id="note-acc"></select>
+      <textarea class="fta" id="note-inp" rows="2" placeholder="Write a note…" style="flex:1;"></textarea>
+      <button class="btn btn-primary" onclick="addNote()">Save</button>
+    </div>
+    <div id="notes-list"></div>
+  </div>
+</div>
+
+<!-- AI -->
+<div class="view" id="view-ai">
+  <div class="topbar"><div class="pg-title">AI Assistant ✨</div></div>
+  <div style="background:linear-gradient(135deg,rgba(79,140,255,.07),rgba(124,92,252,.05));border:1px solid rgba(79,140,255,.18);border-radius:12px;padding:17px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.95rem;">Your smart CRM assistant</div>
+      <div style="background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font-size:.63rem;font-weight:700;padding:2px 8px;border-radius:20px;">AI</div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
+      <div style="background:rgba(79,140,255,.1);color:var(--accent);border:1px solid rgba(79,140,255,.17);border-radius:20px;padding:4px 10px;font-size:.7rem;cursor:pointer;" onclick="qp('Summarize overdue tasks and next actions')">📋 Overdue</div>
+      <div style="background:rgba(79,140,255,.1);color:var(--accent);border:1px solid rgba(79,140,255,.17);border-radius:20px;padding:4px 10px;font-size:.7rem;cursor:pointer;" onclick="qp('Which tasks are waiting PO? Draft follow-up messages')">✉️ Chase POs</div>
+      <div style="background:rgba(79,140,255,.1);color:var(--accent);border:1px solid rgba(79,140,255,.17);border-radius:20px;padding:4px 10px;font-size:.7rem;cursor:pointer;" onclick="qp('What should I prioritize today?')">🎯 Today's priorities</div>
+      <div style="background:rgba(79,140,255,.1);color:var(--accent);border:1px solid rgba(79,140,255,.17);border-radius:20px;padding:4px 10px;font-size:.7rem;cursor:pointer;" onclick="qp('Write a full status report for all accounts')">📊 Status report</div>
+    </div>
+    <textarea class="fta" id="ai-inp" rows="3" placeholder="Ask anything about your tasks, pipeline, POs…" style="background:rgba(255,255,255,.04);border:1px solid rgba(79,140,255,.2);"></textarea>
+    <div style="display:flex;gap:7px;margin-top:9px;">
+      <button class="btn btn-primary" onclick="runAI()" style="flex:1;">✨ Ask AI</button>
+      <button class="btn btn-ghost" onclick="clearAI()">Clear</button>
+    </div>
+    <div id="ai-resp" style="display:none;background:rgba(0,0,0,.28);border-radius:8px;padding:12px;margin-top:10px;font-size:.78rem;line-height:1.6;white-space:pre-wrap;"></div>
+  </div>
+</div>
+
+</main>
+
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+const SEED_TASKS = [{"refCode": "kh-0126-9991", "client": "L'Oreal", "title": "L'Oreal Paris - Color Category Activation", "status": "waiting GR", "date": "2026-03-04", "amount": "2173000.0", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting GR", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0625-9033", "client": "L'Oreal", "title": "Loreal Hyper One Zayed Pillar", "status": "waiting GR", "date": "2026-03-04", "amount": "65k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting GR", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10177", "client": "L'Oreal", "title": "Activation in Hyper 1", "status": "Quotation sent", "date": "2026-03-05", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1225-9910", "client": "Ferrero", "title": "Ferrero POSM Harmonized 25 Canada", "status": "In production", "date": "", "amount": "12,300 USD", "currency": "EGP", "quotation": "Approved", "po": "Done", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-9974", "client": "Ferrero", "title": "WH for both Chocobons & T24", "status": "waiting  samples feedback", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Samples", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1125-9712", "client": "Ferrero", "title": "Nutella Ramadan", "status": "done", "date": "2026-03-04", "amount": "309k", "currency": "EGP", "quotation": "Approved", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-1225-9945", "client": "Ferrero", "title": "New Ferrero Rocher floor display", "status": "in  production", "date": "2026-03-04", "amount": "285k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1225-9879", "client": "Ferrero", "title": "Nutella Kiosk branding", "status": "In production", "date": "2026-02-10", "amount": "206k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-9985", "client": "Ferrero", "title": "Nutella & Go Countertop - Cartoon material", "status": "waiting  samples feedback /quotation sent", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0625-9015", "client": "Ferrero", "title": "Ferrero POSM Harmonized 25", "status": "waiting mold update", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Ferrero", "title": "Wall Hanger Ferrero Morocco", "status": "waiting PO", "date": "", "amount": "306 USD", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10051", "client": "Ferrero", "title": "Nutella Summer campaign", "status": "waiting designs feedback", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10069", "client": "Ferrero", "title": "Tic Tac tree T24 Ferrero Egypt", "status": "In production", "date": "2026-02-10", "amount": "201k", "currency": "EGP", "quotation": "Approved", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10104", "client": "Ferrero", "title": "Ferrero Mixed Branding Gondola Design", "status": "In production", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0725-9230", "client": "D5 Fitness", "title": "5D fitness gym New items", "status": "waiting feedback", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10040", "client": "Piro Spathis", "title": "Spiro Spathis Display Stands", "status": "design & quotation sent", "date": "2026-02-01", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10040", "client": "Piro Spathis", "title": "Spiro Spathis  Metal pillars", "status": "waiting approval Quotation", "date": "2026-02-10", "amount": "90k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1225-9933", "client": "v.cola", "title": "V Cola New Oscar October Quantity 1", "status": "done", "date": "", "amount": "25000.0", "currency": "EGP", "quotation": "Approved", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-10000", "client": "Al Ameed Coffee", "title": "Said gondola – Al-Ameed Coffee Carrefour Quantity 5", "status": "Done", "date": "2026-02-10", "amount": "68k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "Kh-1125-9811", "client": "v.cola", "title": "V.Cola 2026 Plan – Presentation & Idea Developmen", "status": "in delivered", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10000", "client": "Al Ameed Coffee", "title": "New Design Floor display & Stand", "status": "done", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0825-9239", "client": "Rich Bake", "title": "New Rich bake wooden stand", "status": "waitin approval design", "date": "2026-02-10", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10033", "client": "Rich Bake", "title": "Rich Bake New Designs (gondolas )", "status": "done", "date": "2026-03-04", "amount": "32k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-10033", "client": "Rich Bake", "title": "Rich Bake New Designs ( waiting catman )", "status": "done", "date": "2026-03-04", "amount": "70k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-10015", "client": "Dancing Goat Coffee", "title": "Dancing Goat Coffee wooden Boxes", "status": "done", "date": "2026-03-04", "amount": "9k", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-10037", "client": "Dancing Goat Coffee", "title": "Dancing Goat Coffee new mockup", "status": "waiting approval quotation", "date": "2026-02-10", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10158", "client": "Dancing Goat Coffee", "title": "Dancing Goat Coffee Hyde Park Signage", "status": "done", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0226-10147", "client": "Dancing Goat Coffee", "title": "Dancing Goat New Truck", "status": "done", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-1225-9864", "client": "Honor", "title": "Honor tables 90 * 60 Quantity 15", "status": "delivered", "date": "", "amount": "420000.0", "currency": "EGP", "quotation": "approved", "po": "done", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10159", "client": "El Doha", "title": "ElDoha New Gondolas lulu & oscar", "status": "quotation sent waitig PO", "date": "2026-03-05", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0326-10196", "client": "El Doha", "title": "ElDoha New Gondola Hyper Badr", "status": "Quotation sent waitig PO", "date": "2026-03-05", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-9962", "client": "Labanita", "title": "Labanita New items", "status": "waiting client feedback", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0326-10184", "client": "ten", "title": "Ten New Floor Display", "status": "quotation sent", "date": "2026-03-05", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10167", "client": "ten", "title": "Ten New Gondola", "status": "quotation sent", "date": "2026-03-05", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10166", "client": "ten", "title": "Ten New pillar", "status": "quotation sent", "date": "2026-03-05", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10050", "client": "Haier", "title": "WM Base", "status": "cancelled", "date": "2026-02-01", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0625-8971", "client": "Haier", "title": "Q2 AC Stands and signage delta", "status": "Done", "date": "2026-03-04", "amount": "376433.0", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0226-10078", "client": "Haier", "title": "Haier- Zakaria Mahmoud Shop", "status": "waiting for client feedback", "date": "2026-02-16", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10079", "client": "Haier", "title": "Haier- Sehola shop", "status": "waiting for client feedback", "date": "2026-02-16", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10077", "client": "Haier", "title": "Haier- Ihab center Shop", "status": "waiting PO", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10081", "client": "Haier", "title": "Haier - Al Amir Shop", "status": "in production", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Haier", "title": "Redcon Brand Shop", "status": "waiting PO", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10029", "client": "Energizer", "title": "Q1 of 5 Samples Productiuon", "status": "Samples Deliverd wating for Client Feedback to check 26 Feb", "date": "2026-02-18", "amount": "", "currency": "EGP", "quotation": "wating for zizio send amdends", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Samples", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-9965", "client": "Energizer", "title": "CR4 Checkouts Q30", "status": "Deliverd - POD to send to client", "date": "2026-02-10", "amount": "69000.0", "currency": "EGP", "quotation": "Inoiced", "po": "Done", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "Oscar El Tagamo3", "status": "Waiting for approval on designs", "date": "2026-02-10", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "Oscar Madinaty", "status": "Waiting for approval on designs", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "Oscar Almaza", "status": "Waiting for approval on designs", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "Oscar El Maadi", "status": "Waiting for approval on designs", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "Oscar Sheikh Zayed Old", "status": "In Hold to -  Check Status", "date": "2026-02-11", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1225-9854", "client": "Energizer", "title": "Oscar Sheikh Zayed New", "status": "Quotation sent and wating for approval", "date": "2026-02-11", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10043", "client": "Energizer", "title": "Seoudi Hyde park", "status": "Delivered - POD sent", "date": "2026-02-18", "amount": "29640.0", "currency": "EGP", "quotation": "Invoiced", "po": "Needed", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0226-10115", "client": "Energizer", "title": "El Fattah - Zahra Maadi", "status": "Presentation sent To Client for approval - Efrad Remainder", "date": "2026-02-25", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10171", "client": "Energizer", "title": "Energizer Suez Road – On the Run New Store", "status": "Quotation sent and wating for approval", "date": "2026-03-03", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10106", "client": "Energizer", "title": "New Domiat - Stores Energizer", "status": "Quotation sent and wating for approval", "date": "2026-03-03", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10052", "client": "Eveready", "title": "مكتبة بسام – مكتبة حسان – مكتبة محمد كمال – مكتبة البيان – مكتبة الاستاذ - مكتبة فرا  Fagala Area", "status": "Wating for Client approval on presentation - Remainder Sent", "date": "2026-02-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10096", "client": "Eveready", "title": "El Maktba El Hadesa - Munfia", "status": "Design Done - sent to client for approval", "date": "2026-02-08", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0226-10172", "client": "Eveready", "title": "EVEREADY - Tanta 3 Stores", "status": "Efrad received the request to send a quotation to the client", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0625-9022", "client": "Juhayna", "title": "Juhayna El Sharqia", "status": "invoice - instllation on Saturday 21 Feb", "date": "2026-02-18", "amount": "297800.0", "currency": "EGP", "quotation": "9700054396.0", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Juhayna", "title": "Juhayna El Sharqia amndeds + transportion", "status": "Quotation sent & waiting PO", "date": "2026-02-01", "amount": "57114.0", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-9989", "client": "Juhayna", "title": "Juhayna Dahab", "status": "instllation on 8 March", "date": "2026-03-04", "amount": "896029.0", "currency": "EGP", "quotation": "9700055708.0", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Juhayna", "title": "Juhayna Dakahlia", "status": "Quotation sent & waiting PO", "date": "", "amount": "1303881.0", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Juhayna", "title": "Qalyubia Wave 2", "status": "Quotation sent & waiting PO", "date": "", "amount": "2632460.0", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Juhayna", "title": "Juhayna milk Podium Spinneys Mall of Arabia", "status": "will make new one but waiting for client decision (HOLD)", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Juhayna", "title": "El Fayoum", "status": "Sent to Design to send the presentation to the client on Sunday, 8 March", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Juhayna", "title": "Awlad Hassaan/khalil", "status": "Quotation sent & waiting PO", "date": "2026-02-04", "amount": "64724.0", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Waiting PO", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10109", "client": "Juhayna", "title": "Juice Pillar - Thamret el Tawhed", "status": "Quotation Sent for approval - Design amended and sent to client for approval", "date": "2026-03-03", "amount": "64200.0", "currency": "EGP", "quotation": "Quotation sent & waiting PO", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10094", "client": "Juhayna", "title": "Juhayna sinage", "status": "Design and Quotation Sent to the client for approval", "date": "2026-02-11", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Pillar", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0325-8685", "client": "Piro Spathis", "title": "pillar sultana hyper piro Spathis", "status": "waiting efrad", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-9969", "client": "Cybele", "title": "Cybele Samir William Mohandeseen", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0925-9460", "client": "El Doha", "title": "Easy Rice Mexican & Koshary New Gondola Said", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-10006", "client": "Energizer", "title": "Alexandria Maintenance 6 stores", "status": "2 Stores done, Comments on Galaclise store to be done", "date": "2026-03-04", "amount": "", "currency": "EGP", "quotation": "", "po": "PO recived", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Energizer", "title": "El Sayad Gomla Alex maintenance", "status": "Details sent to Kareem Maken via WhatsApp and Mail (one of the stands will replace to everready)\nto take measurements for no Ref code for the Job", "date": "2026-02-11", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1225-9928", "client": "Energizer", "title": "Pillar Maintenance El Mahlawy El Obour", "status": "need permisssion from client - sent remainder", "date": "2026-02-11", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0226-10101", "client": "Energizer", "title": "Almaza/Mall of Arabia", "status": "Almaza - Mall Egypt POD Sent", "date": "2026-02-11", "amount": "", "currency": "EGP", "quotation": "", "po": "Quotation Sent - Wating for PO", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0226-10122", "client": "Energizer", "title": "Pillar Gamal Salam Maintenance", "status": "Remaining one side of the Pillar for light to maintaince - Next Sunday 15/2", "date": "2026-02-12", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-1025-9534", "client": "Ferrero", "title": "Nutella Gondola  for Fathallah somoha", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-9961", "client": "Ferrero", "title": "فريرو صيانه استندات الكاشير والبيكري", "status": "waiting Efrad", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10057", "client": "Ferrero", "title": "Ferrero maintenance Hyper zayed catman", "status": "waiting Efrad", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10019", "client": "Haier", "title": "Wall City Stars", "status": "Done", "date": "2026-02-08", "amount": "", "currency": "EGP", "quotation": "", "po": "To Check", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Haier", "title": "AbdelAziz st shops", "status": "waiting Efrad", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10023", "client": "Juhayna", "title": "Wadi El Nakhel Banner Maintenance", "status": "Done And POD Sent", "date": "2026-02-25", "amount": "", "currency": "EGP", "quotation": "", "po": "PO Recived", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "kh-0126-10076", "client": "Ferrero", "title": "Ferrero maintenance Saudi District 5", "status": "In Maintenance", "date": "2026-02-01", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0325-8685", "client": "Piro Spathis", "title": "pillar sultana hyper spiro Spathis", "status": "waiting efrad", "date": "2026-02-01", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10046", "client": "Ferrero", "title": "Kinder Oscar tagmo3 maintenance", "status": "In Maintenance", "date": "2026-02-01", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "In Production", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "kh-0126-10073", "client": "Cybele", "title": "Cybele Maintenance", "status": "today", "date": "2026-02-01", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Maintenance", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Rich Bake", "title": "Hyper Zayed / gondola", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Rich Bake", "title": "hayper asher /gondola", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Rich Bake", "title": "Flamingo El Tagamoa / catman", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Kinder", "title": "fathallah damnhour / shelf frame", "status": "waiting permission", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Dancing Goat Coffee", "title": "counter glass", "status": "waiting permission", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Waiting Client Feedback", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Kinder", "title": "Othiam 3 gondolas", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Energizer", "title": "Checkout Units Hyper El Soltan", "status": "Team Need Contact Person and location for the Store", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "مكتبة بسام – مكتبة حسان – مكتبة محمد كمال – مكتبة البيان – مكتبة الاستاذ - مكتبة فرا", "status": "Presentation sent to Client for approval", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Eveready", "title": "Munfia - El Maktba El Hadesa", "status": "Presentation sent to Client for approval", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "New Domiat Stores - Energizer", "status": "Sent to Client with Comments and waiting for Advice:\n- في محل yong star - المحجوب ... اطلب اننا نحط لوجو المحل علي ال header هل هنحتاج موافقة علي ده او مينفعش يتم ؟\n- في مكتبة الشاذلي اطلب رفع كل المقاسات المتاحة في المكان ونحدد هنحط الاستندات فين ؟\nto make the design and go through the permission later", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "In Design", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "Market el Fattah - Zahra el Maadi", "status": "Presentation sent to Client for approval", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Energizer", "title": "El Sayad Gomla Alex maintenance", "status": "No Ref. Code to take measurments", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}, {"refCode": "", "client": "Haier", "title": "Haier- Zakaria Mahmoud Shop", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Haier", "title": "Haier- Sehola shop", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Haier", "title": "Haier- Ihab center Shop", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Haier", "title": "Haier - Al Amir Shop", "status": "Done", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Done", "nextAction": "", "notes": "", "subtasks": [], "done": true}, {"refCode": "", "client": "Juhayna", "title": "Juhayna sinage", "status": "Design and Quotation Sent to the client for approval", "date": "", "amount": "", "currency": "EGP", "quotation": "", "po": "", "gr": "", "poNum": "", "workstream": "Catman", "stage": "Quotation Sent", "nextAction": "", "notes": "", "subtasks": [], "done": false}];
+</script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+
+const FB = { apiKey:"AIzaSyB4NjqcIglWe3KCKq_q4-uju1RHT-ZG73k", authDomain:"hussamcrm-c45e7.firebaseapp.com", projectId:"hussamcrm-c45e7", storageBucket:"hussamcrm-c45e7.firebasestorage.app", messagingSenderId:"48390072131", appId:"1:48390072131:web:c18d93baa15077c9f371f6" };
+const app = initializeApp(FB);
+const db = getFirestore(app);
+
+const today = new Date();
+const todayStr = today.toISOString().split('T')[0];
+function od(d){const x=new Date();x.setDate(x.getDate()+d);return x.toISOString().split('T')[0];}
+
+const STAGES = ['Quotation Sent','Waiting PO','PO Received','In Design','In Production','Waiting Samples','Waiting Client Feedback','Waiting GR','Done'];
+const STAGE_CLS = {'Quotation Sent':'sb-qs','Waiting PO':'sb-wp','PO Received':'sb-pr','In Design':'sb-id','In Production':'sb-ip','Waiting Samples':'sb-ws','Waiting Client Feedback':'sb-wcf','Waiting GR':'sb-wg','Done':'sb-done'};
+const CLIENT_COLORS = {"L'Oreal":"#e8a0bf","Ferrero":"#c0392b","Energizer":"#f5c842","Eveready":"#e67e22","Juhayna":"#4f8cff","Haier":"#1abc9c","Kinder":"#ff9a3c","Rich Bake":"#8e44ad","Dancing Goat Coffee":"#6b4c2a","Piro Spathis":"#2980b9","Al Ameed Coffee":"#795548","D5 Fitness":"#27ae60","Honor":"#7f8c8d","Cybele":"#9b59b6","El Doha":"#16a085","Labanita":"#f39c12","ten":"#2c3e50","v.cola":"#e74c3c"};
+const CLIENT_EMOJI = {"L'Oreal":"💄","Ferrero":"🍫","Energizer":"⚡","Eveready":"🔋","Juhayna":"🥛","Haier":"📺","Kinder":"🍬","Rich Bake":"🥐","Dancing Goat Coffee":"☕","Piro Spathis":"🥤","Al Ameed Coffee":"☕","D5 Fitness":"💪","Honor":"📱","Cybele":"🧴","El Doha":"🏪","Labanita":"🧀","ten":"📦","v.cola":"🥤"};
+
+let state={tasks:[],accounts:[],notes:[],automations:[],activity:[]};
+let selMode=false,selSet=new Set(),poRange='month';
+let stageChartInst=null,clientChartInst=null,poTimeChartInst=null,poClientChartInst=null;
+let expandedTasks=new Set();
+
+function setSS(s,m){const el=document.getElementById('sync-bar');el.className=s;el.querySelector('.sdot').className='sdot'+(s==='syncing'?' pulse':'');document.getElementById('stxt').textContent=m;}
+
+// ── SEED ──
+async function seedIfEmpty(){
+  const snap=await getDocs(collection(db,'accounts'));
+  if(!snap.empty) return;
+  document.getElementById('ltxt').textContent='Setting up your workspace (one time only)...';
+  const {writeBatch,doc:fbDoc}=await import('https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js');
+  // Batch 1: accounts
+  let b=writeBatch(db);
+  const clientSet=new Set(SEED_TASKS.map(t=>t.client).filter(Boolean));
+  for(const name of clientSet){const r=fbDoc(collection(db,'accounts'));b.set(r,{name,color:CLIENT_COLORS[name]||'#4f8cff',emoji:CLIENT_EMOJI[name]||'🏢',industry:'FMCG',contact:'—',email:'—',workstreams:['Pillar','Catman','Maintenance'],progress:0,health:'on-track'});}
+  const autos=[{title:'Overdue Task Alert',desc:'Flag tasks past due date.',icon:'⏰',on:true,color:'rgba(255,92,124,.14)'},{title:'Daily Follow-up Reminder',desc:'Surface tasks due today every morning.',icon:'📅',on:true,color:'rgba(79,140,255,.11)'},{title:'PO Chase Reminder',desc:'Alert when task in Waiting PO for 7+ days.',icon:'💰',on:true,color:'rgba(245,200,66,.11)'},{title:'Account Health Monitor',desc:'Auto-update health based on overdue tasks.',icon:'🩺',on:true,color:'rgba(34,217,138,.11)'},{title:'Weekly Summary',desc:'Generate weekly summary every Monday.',icon:'📊',on:true,color:'rgba(124,92,252,.11)'},{title:'AI Draft on Stage Change',desc:'AI drafts email when task moves to Waiting PO.',icon:'✉️',on:false,color:'rgba(79,140,255,.07)'}];
+  for(const a of autos){const r=fbDoc(collection(db,'automations'));b.set(r,a);}
+  const ar=fbDoc(collection(db,'activity'));b.set(ar,{text:'HussamCRM v4 — 102 tasks imported!',color:'var(--green)',time:'Just now'});
+  await b.commit();
+  // Batch tasks in chunks of 400
+  for(let i=0;i<SEED_TASKS.length;i+=400){
+    document.getElementById('ltxt').textContent='Importing tasks '+i+' - '+Math.min(i+400,SEED_TASKS.length)+' of '+SEED_TASKS.length+'...';
+    const b2=writeBatch(db);
+    for(const t of SEED_TASKS.slice(i,i+400)){const r=fbDoc(collection(db,'tasks'));b2.set(r,{...t,nextAction:'',notes:'',subtasks:[],amount:t.amount||'0',currency:t.currency||'EGP'});}
+    await b2.commit();
+  }
+}
+
+// ── LISTENERS ──
+function startListeners(){
+  onSnapshot(collection(db,'tasks'),s=>{state.tasks=s.docs.map(d=>({id:d.id,...d.data()}));refresh();});
+  onSnapshot(collection(db,'accounts'),s=>{state.accounts=s.docs.map(d=>({id:d.id,...d.data()}));refresh();});
+  onSnapshot(collection(db,'notes'),s=>{state.notes=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));refresh();});
+  onSnapshot(collection(db,'automations'),s=>{state.automations=s.docs.map(d=>({id:d.id,...d.data()}));refresh();});
+  onSnapshot(collection(db,'activity'),s=>{state.activity=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));refresh();});
+  setSS('synced','Synced across all devices ✓');
+}
+
+async function boot(){
+  try{await seedIfEmpty();startListeners();document.getElementById('ls').style.display='none';document.getElementById('today-date').textContent=today.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});renderDash();}
+  catch(e){setSS('error','Connection failed');document.getElementById('ltxt').textContent='Failed. Please refresh.';}
+}
+boot();
+
+function refresh(){const av=document.querySelector('.view.active')?.id?.replace('view-','');if(av)rv(av);}
+window.sv=function(n,el){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));const v=document.getElementById('view-'+n);v.classList.add('active','fu');if(el)el.classList.add('active');rv(n);setTimeout(()=>v.classList.remove('fu'),300);};
+function rv(n){if(n==='dashboard')renderDash();else if(n==='tasks')renderTasks();else if(n==='pipeline')renderPipeline();else if(n==='po')renderPO();else if(n==='accounts')renderAccounts();else if(n==='automation')renderAuto();else if(n==='notes')renderNotes();}
+
+// ── HELPERS ──
+function parseAmt(a){if(!a)return 0;const s=String(a);const n=parseFloat(s.replace(/[^0-9.]/g,''));if(isNaN(n))return 0;return s.toLowerCase().includes('k')?n*1000:n;}
+function fmtAmt(n,cur='EGP'){return n>=1000000?(n/1000000).toFixed(1)+'M':(n>=1000?(n/1000).toFixed(0)+'K':Math.round(n).toLocaleString())+' '+cur;}
+function dueCls(due,done){if(done)return'';if(!due)return'';if(due<todayStr)return'due-over';if(due===todayStr)return'due-today';if(due<=od(2))return'due-soon';return'due-ok';}
+function dueLbl(due,done){if(done||!due)return'';if(due<todayStr)return'Overdue';if(due===todayStr)return'Today';if(due<=od(2))return'Soon';return due;}
+function clientColor(c){return CLIENT_COLORS[c]||'#4f8cff';}
+async function logAct(text,color){await addDoc(collection(db,'activity'),{text,color,time:'Just now',createdAt:serverTimestamp()});}
+
+// ── DASHBOARD ──
+function renderDash(){
+  const open=state.tasks.filter(t=>!t.done);
+  const over=open.filter(t=>t.due&&t.due<todayStr);
+  const wpo=open.filter(t=>t.stage==='Waiting PO');
+  const totalAmt=open.reduce((s,t)=>s+parseAmt(t.amount),0);
+  document.getElementById('d-total').textContent=state.tasks.length;
+  document.getElementById('d-total-s').textContent=state.tasks.filter(t=>t.done).length+' done';
+  document.getElementById('d-open').textContent=open.length;
+  document.getElementById('d-open-s').textContent=over.length+' overdue';
+  document.getElementById('d-over').textContent=over.length;
+  document.getElementById('d-wpo').textContent=wpo.length;
+  document.getElementById('d-amt').textContent=fmtAmt(totalAmt);
+  document.getElementById('notif-n').textContent=over.length;
+  // alerts
+  const ac=document.getElementById('dash-alerts');ac.innerHTML='';
+  if(over.length) ac.innerHTML+=`<div class="alert alert-danger">⚠️ <strong>${over.length} overdue task${over.length>1?'s':''}</strong> — ${over.slice(0,2).map(t=>t.title).join(' · ')}${over.length>2?' …':''}</div>`;
+  if(wpo.length>3) ac.innerHTML+=`<div class="alert alert-warn">💰 <strong>${wpo.length} tasks waiting PO</strong> — consider chasing clients</div>`;
+  // urgent tasks
+  const urgent=[...over,...open.filter(t=>t.due===todayStr),...open.filter(t=>t.due>todayStr&&t.due<=od(2))].slice(0,5);
+  document.getElementById('dash-urgent').innerHTML=urgent.length?urgent.map(t=>miniTaskCard(t)).join(''):'<div class="empty">🎉 All clear!</div>';
+  // stage chart
+  const counts=STAGES.map(s=>state.tasks.filter(t=>t.stage===s).length);
+  const sctx=document.getElementById('stage-chart');
+  if(stageChartInst)stageChartInst.destroy();
+  stageChartInst=new Chart(sctx,{type:'bar',data:{labels:STAGES.map(s=>s.replace('Waiting ','W. ').replace('Client Feedback','C.Feedback')),datasets:[{data:counts,backgroundColor:['rgba(79,140,255,.6)','rgba(245,200,66,.6)','rgba(255,154,60,.6)','rgba(124,92,252,.6)','rgba(255,92,124,.6)','rgba(34,217,138,.6)','rgba(245,200,66,.4)','rgba(255,92,124,.4)','rgba(34,217,138,.8)'],borderRadius:5}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7b85a8',font:{size:9}},grid:{display:false}},y:{ticks:{color:'#7b85a8',stepSize:1},grid:{color:'rgba(255,255,255,.04)'}}}}});
+  // client chart
+  const clients=[...new Set(state.tasks.map(t=>t.client).filter(Boolean))].sort();
+  const cCounts=clients.map(c=>state.tasks.filter(t=>t.client===c&&!t.done).length);
+  const cctx=document.getElementById('client-chart');
+  if(clientChartInst)clientChartInst.destroy();
+  clientChartInst=new Chart(cctx,{type:'doughnut',data:{labels:clients,datasets:[{data:cCounts,backgroundColor:clients.map(c=>clientColor(c)+'cc'),borderWidth:0}]},options:{plugins:{legend:{position:'right',labels:{color:'#7b85a8',font:{size:10},boxWidth:10}}}}});
+  // activity
+  document.getElementById('dash-activity').innerHTML=state.activity.slice(0,7).map(a=>`<div style="display:flex;gap:9px;padding:10px 14px;border-bottom:1px solid var(--border);"><div style="width:6px;height:6px;border-radius:50%;background:${a.color};flex-shrink:0;margin-top:5px;"></div><div><div style="font-size:.76rem;">${a.text}</div><div style="font-size:.65rem;color:var(--muted);margin-top:1px;">${a.time}</div></div></div>`).join('')||'<div class="empty">No activity yet.</div>';
+}
+
+function miniTaskCard(t){
+  const dc=dueCls(t.due,t.done),dl=dueLbl(t.due,t.done);
+  return`<div style="display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:1px solid var(--border);font-size:.78rem;">
+    <div style="width:7px;height:7px;border-radius:50%;background:${clientColor(t.client)};flex-shrink:0;"></div>
+    <div style="flex:1;min-width:0;"><div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.title}</div><div style="font-size:.67rem;color:var(--muted);">${t.client||''} · ${t.stage||''}</div></div>
+    ${dl?`<span class="due-badge ${dc}">${dl}</span>`:''}
+  </div>`;
+}
+
+// ── TASKS VIEW ──
+function renderTasks(){
+  // populate client filter
+  const csel=document.getElementById('t-client');
+  const existing=Array.from(csel.options).map(o=>o.value);
+  [...new Set(state.tasks.map(t=>t.client).filter(Boolean))].sort().forEach(c=>{if(!existing.includes(c)){const o=document.createElement('option');o.value=c;o.textContent=c;csel.appendChild(o);}});
+
+  const search=(document.getElementById('t-search')?.value||''). toLowerCase();
+  const cf=csel.value,sf=document.getElementById('t-stage').value,wf=document.getElementById('t-ws').value,df=document.getElementById('t-due').value;
+  let tasks=[...state.tasks];
+  if(cf!=='all')tasks=tasks.filter(t=>t.client===cf);
+  if(sf!=='all')tasks=tasks.filter(t=>t.stage===sf);
+  if(wf!=='all')tasks=tasks.filter(t=>t.workstream===wf);
+  if(df==='overdue')tasks=tasks.filter(t=>!t.done&&t.due&&t.due<todayStr);
+  else if(df==='today')tasks=tasks.filter(t=>!t.done&&t.due===todayStr);
+  else if(df==='open')tasks=tasks.filter(t=>!t.done);
+  else if(df==='done')tasks=tasks.filter(t=>t.done);
+  if(search)tasks=tasks.filter(t=>(t.title+t.client+t.refCode+t.status).toLowerCase().includes(search));
+
+  document.getElementById('task-badge').textContent='('+tasks.length+' tasks)';
+  const el=document.getElementById('tasks-list');
+  el.innerHTML=tasks.length?tasks.map(t=>taskCardHTML(t)).join(''):'<div class="empty">No tasks found.</div>';
+  // bulk bar
+  const bb=document.getElementById('bulk-bar');
+  if(selMode){bb.classList.add('vis');document.getElementById('bulk-cnt').textContent=selSet.size+' task'+(selSet.size!==1?'s':'')+' selected';}
+  else bb.classList.remove('vis');
+}
+
+function taskCardHTML(t){
+  const isExp=expandedTasks.has(t.id);
+  const isSel=selSet.has(t.id);
+  const dc=dueCls(t.due,t.done),dl=dueLbl(t.due,t.done);
+  const stCls=STAGE_CLS[t.stage]||'sb-qs';
+  const stsDone=t.subtasks?.filter(s=>s.done).length||0;
+  const stsTotal=t.subtasks?.length||0;
+  const amt=parseAmt(t.amount);
+  return`<div class="task-card ${t.done?'done-card':''} ${isSel&&selMode?'sel-row':''}" id="tc-${t.id}">
+    <div class="task-head">
+      ${selMode?`<div class="tsel-box ${isSel?'sel':''}" onclick="toggleSelT('${t.id}')">${isSel?'✓':''}</div>`:`<div class="tc-check ${t.done?'done':''}" onclick="toggleT('${t.id}')">${t.done?'✓':''}</div>`}
+      <div class="tc-info" onclick="toggleExpand('${t.id}')">
+        <div class="tc-title ${t.done?'done':''}">${t.title}</div>
+        <div class="tc-meta">
+          <span class="pill pill-ghost" style="background:${clientColor(t.client)}22;color:${clientColor(t.client)}">${CLIENT_EMOJI[t.client]||'🏢'} ${t.client||'—'}</span>
+          <span class="pill pill-ghost">${t.workstream||'—'}</span>
+          <span class="sb ${stCls}">${t.stage||'—'}</span>
+          ${t.refCode?`<span class="pill pill-ghost" style="font-family:monospace;font-size:.62rem;">${t.refCode}</span>`:''}
+          ${dl?`<span class="due-badge ${dc}">${dl}</span>`:''}
+          ${stsTotal>0?`<span class="pill pill-ghost">${stsDone}/${stsTotal} subtasks</span>`:''}
+        </div>
+        ${t.nextAction?`<div class="tc-next">→ ${t.nextAction}</div>`:''}
+        ${t.notes?`<div class="tc-note">📝 ${t.notes}</div>`:''}
+      </div>
+      <div class="tc-right">
+        ${amt>0?`<div class="tc-amount">${fmtAmt(amt,t.currency||'EGP')}</div>`:''}
+        <div class="tc-actions">
+          <button class="tact-btn" onclick="editTask('${t.id}')" title="Edit">✏️</button>
+          <button class="tact-btn" onclick="delTask('${t.id}')" title="Delete">✕</button>
+        </div>
+        <div style="font-size:.65rem;color:var(--muted);cursor:pointer;" onclick="toggleExpand('${t.id}')">${isExp?'▲':'▼'}</div>
+      </div>
+    </div>
+    ${isExp?subtasksHTML(t):''}
+  </div>`;
+}
+
+function subtasksHTML(t){
+  const sts=t.subtasks||[];
+  return`<div class="subtasks-area">
+    <div class="st-title">Subtasks ${sts.length>0?'('+sts.filter(s=>s.done).length+'/'+sts.length+')':''}  <span style="color:var(--muted);font-size:.65rem;font-weight:400;text-transform:none;">— Click task row to collapse</span></div>
+    ${sts.map((s,i)=>`<div class="subtask-item">
+      <div class="st-check ${s.done?'done':''}" onclick="toggleST('${t.id}',${i})">${s.done?'✓':''}</div>
+      <span class="st-text ${s.done?'done':''}">${s.text}</span>
+      <button class="st-del" onclick="delST('${t.id}',${i})">✕</button>
+    </div>`).join('')}
+    <div class="st-add-row">
+      <input class="st-add-input" id="st-inp-${t.id}" placeholder="Add subtask…" onkeydown="if(event.key==='Enter')addST('${t.id}')">
+      <button class="btn btn-ghost btn-sm" onclick="addST('${t.id}')">+ Add</button>
+    </div>
+  </div>`;
+}
+
+window.toggleExpand=function(id){if(expandedTasks.has(id))expandedTasks.delete(id);else expandedTasks.add(id);renderTasks();};
+window.toggleSelT=function(id){selSet.has(id)?selSet.delete(id):selSet.add(id);renderTasks();};
+window.toggleSelectMode=window.toggleSel=function(){selMode=!selMode;selSet.clear();const b=document.getElementById('sel-btn');b.classList.toggle('active',selMode);b.textContent=selMode?'✕ Cancel':'☑️ Select';renderTasks();};
+window.selAll=function(){state.tasks.forEach(t=>selSet.add(t.id));renderTasks();};
+window.clrSel=function(){selSet.clear();renderTasks();};
+window.delSelected=async function(){if(!selSet.size)return;if(!confirm('Delete '+selSet.size+' tasks?'))return;for(const id of selSet)await deleteDoc(doc(db,'tasks',id));await logAct('Deleted '+selSet.size+' tasks','var(--red)');selSet.clear();selMode=false;document.getElementById('sel-btn').className='sel-btn';document.getElementById('sel-btn').textContent='☑️ Select';};
+
+// ── PIPELINE ──
+function renderPipeline(){
+  const clients=[...new Set(state.tasks.map(t=>t.client).filter(Boolean))].sort();
+  ['pipe-client'].forEach(id=>{const s=document.getElementById(id);const cur=s.value;s.innerHTML='<option value="all">All Clients</option>'+clients.map(c=>`<option>${c}</option>`).join('');s.value=cur;});
+  const cf=document.getElementById('pipe-client').value,wf=document.getElementById('pipe-ws').value;
+  let tasks=state.tasks.filter(t=>!t.done);
+  if(cf!=='all')tasks=tasks.filter(t=>t.client===cf);
+  if(wf!=='all')tasks=tasks.filter(t=>t.workstream===wf);
+  document.getElementById('pipeline-board').innerHTML=STAGES.map(s=>{
+    const cards=tasks.filter(t=>t.stage===s);
+    return`<div class="pipe-col">
+      <div class="pipe-hdr"><span class="sb ${STAGE_CLS[s]||''}" style="font-size:.68rem;">${s}</span><span class="pipe-cnt">${cards.length}</span></div>
+      ${cards.map(t=>`<div class="pipe-card" onclick="quickEditStage('${t.id}','${t.stage}')">
+        ${t.refCode?`<div class="pipe-code">${t.refCode}</div>`:''}
+        <div class="pipe-title" title="${t.title}">${t.title}</div>
+        <div class="pipe-meta">${CLIENT_EMOJI[t.client]||''} ${t.client||'—'} · ${t.workstream||''}</div>
+        ${parseAmt(t.amount)>0?`<div class="pipe-amount">💰 ${fmtAmt(parseAmt(t.amount),t.currency||'EGP')}</div>`:''}
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
+window.quickEditStage=function(id,curStage){
+  const t=state.tasks.find(x=>x.id===id);if(!t)return;
+  const m=document.getElementById('modal-content');
+  const opts=STAGES.map(s=>`<option value="${s}" ${s===curStage?'selected':''} >${s}</option>`).join('');
+  m.innerHTML=`<div class="modal-title">🔄 Change Stage — ${t.title}</div>
+    <div class="fg"><label class="fl">Move to Stage</label><select class="fs" id="qs-stage">${opts}</select></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="applyStage('${id}')">Move</button></div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+};
+window.applyStage=async function(id){
+  const ns=document.getElementById('qs-stage').value;
+  await updateDoc(doc(db,'tasks',id),{stage:ns});
+  await logAct('Task moved to '+ns+': '+(state.tasks.find(t=>t.id===id)?.title||'')||'task','var(--accent2)');
+  closeModal();
+};
+
+// ── PO DASHBOARD ──
+function renderPO(){
+  const now=new Date();
+  const sow=new Date(now);sow.setDate(now.getDate()-now.getDay());
+  const som=new Date(now.getFullYear(),now.getMonth(),1);
+  const soy=new Date(now.getFullYear(),0,1);
+  const poT=state.tasks.filter(t=>t.stage==='PO Received'||t.po?.toLowerCase().includes('receiv')||t.po?.toLowerCase().includes('reciv'));
+  const inRange=(d,from)=>{if(!d)return false;return new Date(d)>=from;};
+  const wkT=poT.filter(t=>inRange(t.date,sow));
+  const moT=poT.filter(t=>inRange(t.date,som));
+  const yrT=poT.filter(t=>inRange(t.date,soy));
+  const wt=state.tasks.filter(t=>t.stage==='Waiting PO'&&!t.done);
+  const sum=arr=>arr.reduce((s,t)=>s+parseAmt(t.amount),0);
+  document.getElementById('po-wk').textContent=fmtAmt(sum(wkT));document.getElementById('po-wk-c').textContent=wkT.length+' tasks';
+  document.getElementById('po-mo').textContent=fmtAmt(sum(moT));document.getElementById('po-mo-c').textContent=moT.length+' tasks';
+  document.getElementById('po-yr').textContent=fmtAmt(sum(yrT));document.getElementById('po-yr-c').textContent=yrT.length+' tasks';
+  document.getElementById('po-wait').textContent=wt.length;
+  renderPOChart(poRange);
+  // PO by client doughnut
+  const cTot={};poT.forEach(t=>{cTot[t.client]=(cTot[t.client]||0)+parseAmt(t.amount);});
+  const cL=Object.keys(cTot).filter(k=>cTot[k]>0);
+  const cD=cL.map(k=>cTot[k]);
+  const ctx2=document.getElementById('po-client-chart');
+  if(poClientChartInst)poClientChartInst.destroy();
+  poClientChartInst=new Chart(ctx2,{type:'doughnut',data:{labels:cL,datasets:[{data:cD,backgroundColor:cL.map(c=>clientColor(c)+'cc'),borderWidth:0}]},options:{plugins:{legend:{position:'right',labels:{color:'#7b85a8',font:{size:10},boxWidth:10}}}}});
+  // PO table
+  document.getElementById('po-table').innerHTML=`<tr style="font-size:.67rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);">
+    <th style="padding:9px 13px;text-align:left;">Ref Code</th><th style="padding:9px 13px;text-align:left;">Client</th><th style="padding:9px 13px;text-align:left;">Task</th><th style="padding:9px 13px;text-align:left;">Amount</th><th style="padding:9px 13px;text-align:left;">Date</th><th style="padding:9px 13px;text-align:left;">PO</th>
+  </tr>`+poT.map(t=>`<tr style="font-size:.78rem;border-bottom:1px solid var(--border);">
+    <td style="padding:10px 13px;font-family:monospace;font-size:.7rem;color:var(--accent);">${t.refCode||'—'}</td>
+    <td style="padding:10px 13px;">${t.client}</td>
+    <td style="padding:10px 13px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.title}</td>
+    <td style="padding:10px 13px;color:var(--green);font-weight:600;">${t.amount?fmtAmt(parseAmt(t.amount),t.currency||'EGP'):'—'}</td>
+    <td style="padding:10px 13px;">${t.date||'—'}</td>
+    <td style="padding:10px 13px;"><span style="background:rgba(34,217,138,.13);color:var(--green);border-radius:6px;padding:2px 8px;font-size:.68rem;">✅ ${t.po||'Received'}</span></td>
+  </tr>`).join('');
+}
+
+function renderPOChart(range){
+  const poT=state.tasks.filter(t=>t.stage==='PO Received'||t.po?.toLowerCase().includes('receiv')||t.po?.toLowerCase().includes('reciv'));
+  const now=new Date();let labels=[],data=[];
+  if(range==='week'){const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];for(let i=6;i>=0;i--){const d=new Date(now);d.setDate(now.getDate()-i);labels.push(days[d.getDay()]);const ds=d.toISOString().split('T')[0];data.push(poT.filter(t=>t.date===ds).reduce((s,t)=>s+parseAmt(t.amount),0));}}
+  else if(range==='month'){for(let i=0;i<4;i++){labels.push('Wk'+(i+1));const ws=new Date(now.getFullYear(),now.getMonth(),1+i*7),we=new Date(now.getFullYear(),now.getMonth(),7+i*7);data.push(poT.filter(t=>t.date&&new Date(t.date)>=ws&&new Date(t.date)<=we).reduce((s,t)=>s+parseAmt(t.amount),0));}}
+  else{const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];for(let i=0;i<12;i++){labels.push(mo[i]);data.push(poT.filter(t=>t.date&&new Date(t.date).getMonth()===i&&new Date(t.date).getFullYear()===now.getFullYear()).reduce((s,t)=>s+parseAmt(t.amount),0));}}
+  const ctx=document.getElementById('po-time-chart');
+  if(poTimeChartInst)poTimeChartInst.destroy();
+  poTimeChartInst=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Amount',data,borderColor:'#4f8cff',backgroundColor:'rgba(79,140,255,.09)',fill:true,tension:.4,pointBackgroundColor:'#4f8cff',pointRadius:4}]},options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#7b85a8',font:{size:11}},grid:{display:false}},y:{ticks:{color:'#7b85a8',callback:v=>v>=1000?v/1000+'K':v},grid:{color:'rgba(255,255,255,.04)'}}}}}); 
+}
+window.setPORange=function(r,el){poRange=r;document.querySelectorAll('.ctab').forEach(t=>t.classList.remove('active'));el.classList.add('active');renderPOChart(r);};
+
+// ── ACCOUNTS ──
+function renderAccounts(){
+  document.getElementById('accounts-grid').innerHTML=state.accounts.map(a=>{
+    const tks=state.tasks.filter(t=>t.client===a.name&&!t.done);
+    const ov=tks.filter(t=>t.due&&t.due<todayStr);
+    const c=a.color||clientColor(a.name);
+    return`<div class="card card-p">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:11px;">
+        <div style="width:36px;height:36px;border-radius:9px;background:${c}22;color:${c};display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">${a.emoji||'🏢'}</div>
+        <div style="flex:1;min-width:0;"><div style="font-family:'Syne',sans-serif;font-weight:700;font-size:.88rem;">${a.name}</div><div style="font-size:.7rem;color:var(--muted);">${a.industry}</div></div>
+        <button class="btn btn-ghost btn-sm" onclick="editAcc('${a.id}')">Edit</button>
+      </div>
+      <div style="font-size:.72rem;color:var(--muted);margin-bottom:8px;">📋 ${tks.length} open tasks ${ov.length>0?'· <span style="color:var(--red);">⚠️ '+ov.length+' overdue</span>':''}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px;">${(a.workstreams||[]).map(w=>`<span class="pill pill-blue">${w}</span>`).join('')}</div>
+      <div style="display:flex;gap:6px;margin-top:9px;">
+        <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="openModal('task','${a.name}')">+ Task</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.editAcc=function(id){
+  const a=state.accounts.find(x=>x.id===id);if(!a)return;
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<div class="modal-title">✏️ Edit ${a.name}</div>
+    <div class="frow"><div class="fg"><label class="fl">Contact</label><input class="fi" id="m-con" value="${a.contact||'—'}"></div><div class="fg"><label class="fl">Email</label><input class="fi" id="m-em" value="${a.email||'—'}"></div></div>
+    <div class="frow"><div class="fg"><label class="fl">Industry</label><input class="fi" id="m-ind" value="${a.industry||''}" ></div><div class="fg"><label class="fl">Progress %</label><input class="fi" id="m-prog" type="number" min="0" max="100" value="${a.progress||0}"></div></div>
+    <div class="fg"><label class="fl">Workstreams (comma separated)</label><input class="fi" id="m-ws" value="${(a.workstreams||[]).join(', ')}" ></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="updAcc('${id}')">Save</button></div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+};
+window.updAcc=async function(id){
+  await updateDoc(doc(db,'accounts',id),{contact:document.getElementById('m-con').value,email:document.getElementById('m-em').value,industry:document.getElementById('m-ind').value,progress:parseInt(document.getElementById('m-prog').value)||0,workstreams:document.getElementById('m-ws').value.split(',').map(s=>s.trim()).filter(Boolean)});
+  closeModal();
+};
+
+// ── AUTOMATION ──
+function renderAuto(){
+  document.getElementById('auto-list').innerHTML=state.automations.map(a=>`
+    <div class="auto-card">
+      <div class="auto-icon" style="background:${a.color}">${a.icon}</div>
+      <div style="flex:1"><div style="font-weight:600;font-size:.82rem;margin-bottom:3px;">${a.title}</div><div style="font-size:.7rem;color:var(--muted);line-height:1.4;">${a.desc}</div></div>
+      <button class="toggle ${a.on?'on':''}" onclick="togAuto('${a.id}')"><div class="tknob"></div></button>
+    </div>`).join('');
+}
+window.togAuto=async function(id){const a=state.automations.find(x=>x.id===id);if(!a)return;await updateDoc(doc(db,'automations',id),{on:!a.on});};
+
+// ── NOTES ──
+function renderNotes(){
+  const sel=document.getElementById('note-acc');const cur=sel.value;
+  sel.innerHTML=state.accounts.map(a=>`<option value="${a.name}">${a.name}</option>`).join('');
+  if(cur)sel.value=cur;
+  document.getElementById('notes-list').innerHTML=state.notes.map(n=>`<div class="note-item"><div class="note-hdr"><span style="font-size:.7rem;font-weight:600;color:${clientColor(n.account)}">${n.account}</span><span style="font-size:.63rem;color:var(--muted);">${n.time||''}</span></div><div style="font-size:.78rem;line-height:1.5;">${n.text}</div></div>`).join('')||'<div class="empty">No notes yet.</div>';
+}
+window.addNote=async function(){const acc=document.getElementById('note-acc').value;const text=document.getElementById('note-inp').value.trim();if(!text)return;const now=new Date();await addDoc(collection(db,'notes'),{account:acc,text,time:now.toLocaleDateString('en-GB')+' '+now.getHours().toString().padStart(2,'0')+':'+now.getMinutes().toString().padStart(2,'0'),createdAt:serverTimestamp()});document.getElementById('note-inp').value='';};
+
+// ── SUBTASKS ──
+window.addST=async function(tid){
+  const inp=document.getElementById('st-inp-'+tid);if(!inp)return;const text=inp.value.trim();if(!text)return;
+  const t=state.tasks.find(x=>x.id===tid);if(!t)return;
+  const sts=[...(t.subtasks||[]),{text,done:false}];
+  await updateDoc(doc(db,'tasks',tid),{subtasks:sts});
+};
+window.toggleST=async function(tid,idx){
+  const t=state.tasks.find(x=>x.id===tid);if(!t)return;
+  const sts=[...(t.subtasks||[])];sts[idx]={...sts[idx],done:!sts[idx].done};
+  await updateDoc(doc(db,'tasks',tid),{subtasks:sts});
+};
+window.delST=async function(tid,idx){
+  const t=state.tasks.find(x=>x.id===tid);if(!t)return;
+  const sts=(t.subtasks||[]).filter((_,i)=>i!==idx);
+  await updateDoc(doc(db,'tasks',tid),{subtasks:sts});
+};
+
+// ── FIREBASE TASK ACTIONS ──
+window.toggleT=async function(id){const t=state.tasks.find(x=>x.id===id);if(!t)return;await updateDoc(doc(db,'tasks',id),{done:!t.done});if(!t.done)await logAct('Task completed: '+t.title,'var(--green)');};
+window.delTask=async function(id){const t=state.tasks.find(x=>x.id===id);if(!t||!confirm('Delete "'+t.title+'"?'))return;await deleteDoc(doc(db,'tasks',id));await logAct('Task deleted: '+t.title,'var(--red)');};
+
+// ── MODALS ──
+window.openModal=function(type,prefill=''){
+  const m=document.getElementById('modal-content');
+  const accOpts=state.accounts.map(a=>`<option value="${a.name}" ${a.name===prefill?'selected':''} >${a.name}</option>`).join('');
+  const stageOpts=STAGES.map(s=>`<option>${s}</option>`).join('');
+  if(type==='task'){
+    m.innerHTML=`<div class="modal-title">➕ New Task</div>
+      <div class="fg"><label class="fl">Title / Project Name</label><input class="fi" id="m-title" placeholder="e.g. Ferrero Nutella Ramadan"></div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Ref Code</label><input class="fi" id="m-code" placeholder="kh-XXXX-XXXX"></div>
+        <div class="fg"><label class="fl">Client</label><select class="fs" id="m-client">${accOpts}</select></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Workstream</label><select class="fs" id="m-ws"><option>Pillar</option><option>Catman</option><option>Maintenance</option></select></div>
+        <div class="fg"><label class="fl">Stage</label><select class="fs" id="m-stage">${stageOpts}</select></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Amount</label><input class="fi" id="m-amt" placeholder="e.g. 50000 or 50K"></div>
+        <div class="fg"><label class="fl">Currency</label><select class="fs" id="m-cur"><option>EGP</option><option>USD</option></select></div>
+      </div>
+      <div class="frow">
+        <div class="fg"><label class="fl">Due Date</label><input class="fi" id="m-due" type="date" value="${todayStr}"></div>
+        <div class="fg"><label class="fl">PO Status</label><input class="fi" id="m-po" placeholder="e.g. PO Received, Waiting…"></div>
+      </div>
+      <div class="fg"><label class="fl">→ Next Action</label><input class="fi" id="m-next" placeholder="e.g. Call client, Send quotation…"></div>
+      <div class="fg"><label class="fl">📝 Notes</label><textarea class="fta" id="m-notes" placeholder="Any context or details…"></textarea></div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveTask()">Save Task</button></div>`;
+  } else if(type==='account'){
+    m.innerHTML=`<div class="modal-title">🏢 New Account</div>
+      <div class="frow"><div class="fg"><label class="fl">Name</label><input class="fi" id="m-name" placeholder="Client name"></div><div class="fg"><label class="fl">Industry</label><input class="fi" id="m-ind" placeholder="FMCG…"></div></div>
+      <div class="frow"><div class="fg"><label class="fl">Contact</label><input class="fi" id="m-con"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="m-em" value="🏢" maxlength="2"></div></div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="saveAcc()">Add</button></div>`;
+  }
+  document.getElementById('modal-overlay').classList.add('open');
+};
+window.closeModal=function(){document.getElementById('modal-overlay').classList.remove('open');};
+
+window.saveTask=async function(){
+  const title=document.getElementById('m-title').value.trim();if(!title)return alert('Enter a title.');
+  await addDoc(collection(db,'tasks'),{title,refCode:document.getElementById('m-code').value,client:document.getElementById('m-client').value,workstream:document.getElementById('m-ws').value,stage:document.getElementById('m-stage').value,amount:document.getElementById('m-amt').value,currency:document.getElementById('m-cur').value,due:document.getElementById('m-due').value,po:document.getElementById('m-po').value,nextAction:document.getElementById('m-next').value,notes:document.getElementById('m-notes').value,subtasks:[],done:false,createdAt:serverTimestamp()});
+  await logAct('New task: '+title,'var(--accent)');closeModal();
+};
+window.saveAcc=async function(){const name=document.getElementById('m-name').value.trim();if(!name)return;const cols=['#4f8cff','#7c5cfc','#22d98a','#f5c842','#ff9a3c','#ff5c7c'];await addDoc(collection(db,'accounts'),{name,industry:document.getElementById('m-ind').value,contact:document.getElementById('m-con').value,emoji:document.getElementById('m-em').value||'🏢',color:cols[Math.floor(Math.random()*cols.length)],workstreams:['Pillar','Catman','Maintenance'],progress:0,health:'on-track',createdAt:serverTimestamp()});await logAct('New account: '+name,'var(--green)');closeModal();};
+
+window.editTask=function(id){
+  const t=state.tasks.find(x=>x.id===id);if(!t)return;
+  const accOpts=state.accounts.map(a=>`<option value="${a.name}" ${a.name===t.client?'selected':''} >${a.name}</option>`).join('');
+  const stOpts=STAGES.map(s=>`<option ${t.stage===s?'selected':''} >${s}</option>`).join('');
+  const m=document.getElementById('modal-content');
+  m.innerHTML=`<div class="modal-title">✏️ Edit Task</div>
+    <div class="fg"><label class="fl">Title</label><input class="fi" id="m-title" value="${t.title}"></div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Ref Code</label><input class="fi" id="m-code" value="${t.refCode||''}" ></div>
+      <div class="fg"><label class="fl">Client</label><select class="fs" id="m-client">${accOpts}</select></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Workstream</label><select class="fs" id="m-ws"><option ${t.workstream==='Pillar'?'selected':''} >Pillar</option><option ${t.workstream==='Catman'?'selected':''} >Catman</option><option ${t.workstream==='Maintenance'?'selected':''} >Maintenance</option></select></div>
+      <div class="fg"><label class="fl">Stage</label><select class="fs" id="m-stage">${stOpts}</select></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Amount</label><input class="fi" id="m-amt" value="${t.amount||''}" ></div>
+      <div class="fg"><label class="fl">Currency</label><select class="fs" id="m-cur"><option ${(t.currency||'EGP')==='EGP'?'selected':''} >EGP</option><option ${t.currency==='USD'?'selected':''} >USD</option></select></div>
+    </div>
+    <div class="frow">
+      <div class="fg"><label class="fl">Due Date</label><input class="fi" id="m-due" type="date" value="${t.due||todayStr}"></div>
+      <div class="fg"><label class="fl">PO Status</label><input class="fi" id="m-po" value="${t.po||''}" ></div>
+    </div>
+    <div class="fg"><label class="fl">Status</label><select class="fs" id="m-done"><option value="false" ${!t.done?'selected':''} >Open</option><option value="true" ${t.done?'selected':''} >Done</option></select></div>
+    <div class="fg"><label class="fl">→ Next Action</label><input class="fi" id="m-next" value="${t.nextAction||''}" ></div>
+    <div class="fg"><label class="fl">📝 Notes</label><textarea class="fta" id="m-notes">${t.notes||''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger btn-sm" style="margin-right:auto;" onclick="delTask('${id}');closeModal();">Delete</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="updTask('${id}')">Save</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+};
+
+window.updTask=async function(id){
+  const title=document.getElementById('m-title').value.trim();if(!title)return;
+  await updateDoc(doc(db,'tasks',id),{title,refCode:document.getElementById('m-code').value,client:document.getElementById('m-client').value,workstream:document.getElementById('m-ws').value,stage:document.getElementById('m-stage').value,amount:document.getElementById('m-amt').value,currency:document.getElementById('m-cur').value,due:document.getElementById('m-due').value,po:document.getElementById('m-po').value,done:document.getElementById('m-done').value==='true',nextAction:document.getElementById('m-next').value,notes:document.getElementById('m-notes').value});
+  await logAct('Task updated: '+title,'var(--accent)');closeModal();
+};
+
+// ── EXCEL IMPORT / EXPORT ──
+window.exportExcel=function(){
+  const ws=XLSX.utils.json_to_sheet(state.tasks.map(t=>({'Ref Code':t.refCode,'Client':t.client,'Title':t.title,'Workstream':t.workstream,'Stage':t.stage,'Amount':t.amount,'Currency':t.currency,'PO Status':t.po,'Due Date':t.due,'Next Action':t.nextAction,'Notes':t.notes,'Done':t.done?'Yes':'No','Status':t.status})));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Tasks');
+  XLSX.writeFile(wb,'HussamCRM_Tasks_'+todayStr+'.xlsx');
+};
+
+window.importExcel=async function(e){
+  const file=e.target.files[0];if(!file)return;
+  const data=await file.arrayBuffer();
+  const wb=XLSX.read(data);
+  let allRows=[];
+  for(const sheetName of wb.SheetNames){
+    const ws=wb.Sheets[sheetName];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+    allRows=[...allRows,...rows.map(r=>({...r,_sheet:sheetName}))];
+  }
+  if(!allRows.length)return alert('No data found in file.');
+  if(!confirm('Import '+allRows.length+' rows from '+wb.SheetNames.length+' sheet(s)?'))return;
+  function toStage(s){s=(s||'').toLowerCase();
+    if(s.includes('done')||s.includes('pod sent'))return'Done';
+    if(s.includes('waiting gr'))return'Waiting GR';
+    if(s.includes('in production')||s.includes('in maintenance'))return'In Production';
+    if(s.includes('po reciv')||s.includes('po receiv'))return'PO Received';
+    if(s.includes('waiting po')||(s.includes('wait')&&s.includes('po')))return'Waiting PO';
+    if(s.includes('design'))return'In Design';
+    if(s.includes('sample'))return'Waiting Samples';
+    if(s.includes('feedback'))return'Waiting Client Feedback';
+    return'Quotation Sent';
+  }
+  let count=0;
+  const {writeBatch,doc:fbDoc}=await import('https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js');
+  for(let i=0;i<allRows.length;i+=400){
+    const b=writeBatch(db);
+    for(const r of allRows.slice(i,i+400)){
+      const keys=Object.keys(r);
+      function gv(...names){for(const n of names){for(const k of keys){if(k.trim().toLowerCase()===n.toLowerCase()&&r[k]!==undefined&&r[k]!=='')return String(r[k]).trim();}};return'';}
+      const title=gv('project','project name','title','project maintenance','taking measurements branches');
+      const client=gv('client');
+      if(!title||!client||client==='Client')continue;
+      const status=gv('current status','status');
+      const ws=r._sheet==='Projects'?'Pillar':r._sheet==='Maintenance'?'Maintenance':'Catman';
+      const ref=fbDoc(collection(db,'tasks'));
+      b.set(ref,{title,refCode:gv('code','ref code'),client,workstream:ws,stage:toStage(status),amount:gv('sales price','price'),currency:'EGP',po:gv('po','po status'),date:(gv('date of update','date')||'').split('T')[0]||todayStr,status,nextAction:'',notes:'',subtasks:[],done:status.toLowerCase().includes('done')});
+      count++;
+    }
+    await b.commit();
+  }
+  await logAct('Imported '+count+' tasks from Excel','var(--green)');
+  alert('Imported '+count+' tasks!');
+  e.target.value='';
+};
+// ── AI ──
+window.runAI=async function(){
+  const prompt=document.getElementById('ai-inp').value.trim();if(!prompt)return;
+  const resp=document.getElementById('ai-resp');resp.style.display='block';resp.innerHTML='<div class="typing"><span></span><span></span><span></span></div>';
+  const open=state.tasks.filter(t=>!t.done);
+  const context=`You are a CRM assistant for Hussam, an Account Manager at a retail display/POSM company in Egypt.
+Tasks total: ${state.tasks.length}. Open: ${open.length}.
+Overdue: ${open.filter(t=>t.due&&t.due<todayStr).map(t=>t.client+': '+t.title+' (next: '+(t.nextAction||'—')+ ')').join('; ')||'None'}.
+Waiting PO: ${open.filter(t=>t.stage==='Waiting PO').map(t=>t.client+': '+t.title).join(', ')||'None'}.
+In Production: ${open.filter(t=>t.stage==='In Production').map(t=>t.client+': '+t.title).join(', ')||'None'}.
+Today: ${todayStr}. Be concise and action-oriented.`;
+  try{const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:context,messages:[{role:'user',content:prompt}]})});const data=await res.json();resp.textContent=data.content?.[0]?.text||'No response.';}
+  catch(e){resp.textContent='AI unavailable. Please try again.';}
+};
+window.qp=function(p){document.getElementById('ai-inp').value=p;sv('ai',document.querySelectorAll('.ni')[7]);setTimeout(runAI,200);};
+window.clearAI=function(){document.getElementById('ai-resp').style.display='none';document.getElementById('ai-inp').value='';};
+</script>
+</body>
+</html>
