@@ -418,7 +418,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 <!-- ACCOUNTS -->
 <div class="view" id="view-accounts">
-  <div class="topbar"><div class="pg-title">Accounts</div><button class="btn btn-primary" onclick="openModal('account')">+ Add Account</button></div>
+  <div class="topbar">
+    <div class="pg-title">Accounts</div>
+    <div class="tr">
+      <button class="btn btn-success" onclick="exportAccounts()">⬇️ Export</button>
+      <label class="btn btn-ghost" style="cursor:pointer;">📂 Import<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importAccounts(event)"></label>
+      <button class="btn btn-primary" onclick="openModal('account')">+ Add Account</button>
+    </div>
+  </div>
   <div id="accounts-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(265px,1fr));gap:13px;"></div>
 </div>
 
@@ -557,7 +564,28 @@ async function boot(){
 }
 boot();
 
-function refresh(){const av=document.querySelector('.view.active')?.id?.replace('view-','');if(av)rv(av);}
+function refresh(){
+  const av=document.querySelector('.view.active')?.id?.replace('view-','');
+  if(av)rv(av);
+  // Always keep dashboard stats updated in background
+  updateDashStats();
+}
+
+function updateDashStats(){
+  if(!state.tasks.length&&!state.accounts.length)return;
+  const open=state.tasks.filter(t=>!t.done);
+  const over=open.filter(t=>t.due&&t.due<todayStr);
+  const wpo=open.filter(t=>t.stage==='Waiting PO');
+  const totalAmt=open.reduce((s,t)=>s+parseAmt(t.amount),0);
+  const se=id=>document.getElementById(id);
+  if(se('d-total'))se('d-total').textContent=state.tasks.length;
+  if(se('d-open'))se('d-open').textContent=open.length;
+  if(se('d-over'))se('d-over').textContent=over.length;
+  if(se('d-wpo'))se('d-wpo').textContent=wpo.length;
+  if(se('d-amt'))se('d-amt').textContent=fmtAmt(totalAmt);
+  if(se('notif-n'))se('notif-n').textContent=over.length;
+  if(se('s-accounts'))se('s-accounts').textContent=state.accounts.length;
+}
 window.sv=function(n,el){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.querySelectorAll('.ni').forEach(x=>x.classList.remove('active'));const v=document.getElementById('view-'+n);v.classList.add('active','fu');if(el)el.classList.add('active');rv(n);setTimeout(()=>v.classList.remove('fu'),300);};
 function rv(n){if(n==='dashboard')renderDash();else if(n==='tasks')renderTasks();else if(n==='pipeline')renderPipeline();else if(n==='po')renderPO();else if(n==='accounts')renderAccounts();else if(n==='automation')renderAuto();else if(n==='notes')renderNotes();else if(n==='client-view')renderClientView();else if(n==='target')renderTarget();}
 
@@ -616,12 +644,22 @@ function miniTaskCard(t){
 
 // ── TASKS VIEW ──
 function renderTasks(){
-  // populate client filter
+  // Rebuild client dropdown fresh each time to stay in sync
   const csel=document.getElementById('t-client');
-  const existing=Array.from(csel.options).map(o=>o.value);
-  [...new Set(state.tasks.map(t=>t.client).filter(Boolean))].sort().forEach(c=>{if(!existing.includes(c)){const o=document.createElement('option');o.value=c;o.textContent=c;csel.appendChild(o);}});
+  const curClient=csel.value;
+  const clients=[...new Set(state.tasks.map(t=>t.client).filter(Boolean))].sort();
+  csel.innerHTML='<option value="all">All Clients</option>'+clients.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(clients.includes(curClient)) csel.value=curClient;
 
-  const search=(document.getElementById('t-search')?.value||''). toLowerCase();
+  // Populate pipeline client filter too
+  const psel=document.getElementById('pipe-client');
+  if(psel){
+    const curP=psel.value;
+    psel.innerHTML='<option value="all">All Clients</option>'+clients.map(c=>`<option value="${c}">${c}</option>`).join('');
+    if(clients.includes(curP)) psel.value=curP;
+  }
+
+  const search=(document.getElementById('t-search')?.value||'').toLowerCase().trim();
   const cf=csel.value,sf=document.getElementById('t-stage').value,wf=document.getElementById('t-ws').value,df=document.getElementById('t-due').value;
   let tasks=[...state.tasks];
   if(cf!=='all')tasks=tasks.filter(t=>t.client===cf);
@@ -631,12 +669,18 @@ function renderTasks(){
   else if(df==='today')tasks=tasks.filter(t=>!t.done&&t.due===todayStr);
   else if(df==='open')tasks=tasks.filter(t=>!t.done);
   else if(df==='done')tasks=tasks.filter(t=>t.done);
-  if(search)tasks=tasks.filter(t=>(t.title+t.client+t.refCode+t.status).toLowerCase().includes(search));
+  if(search)tasks=tasks.filter(t=>(t.title+' '+t.client+' '+t.refCode+' '+(t.status||'')+' '+(t.notes||'')+' '+(t.nextAction||'')).toLowerCase().includes(search));
+
+  // Sort: overdue first, then by due date
+  tasks.sort((a,b)=>{
+    if(!a.done&&a.due&&a.due<todayStr&&(b.done||!b.due||b.due>=todayStr))return -1;
+    if(!b.done&&b.due&&b.due<todayStr&&(a.done||!a.due||a.due>=todayStr))return 1;
+    return(a.due||'9999')>(b.due||'9999')?1:-1;
+  });
 
   document.getElementById('task-badge').textContent='('+tasks.length+' tasks)';
   const el=document.getElementById('tasks-list');
   el.innerHTML=tasks.length?tasks.map(t=>taskCardHTML(t)).join(''):'<div class="empty">No tasks found.</div>';
-  // bulk bar
   const bb=document.getElementById('bulk-bar');
   if(selMode){bb.classList.add('vis');document.getElementById('bulk-cnt').textContent=selSet.size+' task'+(selSet.size!==1?'s':'')+' selected';}
   else bb.classList.remove('vis');
@@ -716,7 +760,10 @@ window.delSelected=async function(){if(!selSet.size)return;if(!confirm('Delete '
 // ── PIPELINE ──
 function renderPipeline(){
   const clients=[...new Set(state.tasks.map(t=>t.client).filter(Boolean))].sort();
-  ['pipe-client'].forEach(id=>{const s=document.getElementById(id);const cur=s.value;s.innerHTML='<option value="all">All Clients</option>'+clients.map(c=>`<option>${c}</option>`).join('');s.value=cur;});
+  const ps=document.getElementById('pipe-client');
+  const curP=ps.value;
+  ps.innerHTML='<option value="all">All Clients</option>'+clients.map(c=>`<option value="${c}">${c}</option>`).join('');
+  if(clients.includes(curP))ps.value=curP;
   const cf=document.getElementById('pipe-client').value,wf=document.getElementById('pipe-ws').value;
   let tasks=state.tasks.filter(t=>!t.done);
   if(cf!=='all')tasks=tasks.filter(t=>t.client===cf);
@@ -918,9 +965,29 @@ window.closeModal=function(){document.getElementById('modal-overlay').classList.
 
 window.saveTask=async function(){
   const title=document.getElementById('m-title').value.trim();if(!title)return alert('Enter a title.');
-  await addDoc(collection(db,'tasks'),{title,refCode:document.getElementById('m-code').value,client:document.getElementById('m-client').value,workstream:document.getElementById('m-ws').value,stage:document.getElementById('m-stage').value,amount:document.getElementById('m-amt').value,currency:document.getElementById('m-cur').value,due:document.getElementById('m-due').value,po:document.getElementById('m-po').value,nextAction:document.getElementById('m-next').value,notes:document.getElementById('m-notes').value,subtasks:[],done:false,createdAt:serverTimestamp()});
+  const client=document.getElementById('m-client').value;
+  // Auto-create account if client doesn't exist yet
+  await ensureAccountExists(client);
+  await addDoc(collection(db,'tasks'),{title,refCode:document.getElementById('m-code').value,client,workstream:document.getElementById('m-ws').value,stage:document.getElementById('m-stage').value,amount:document.getElementById('m-amt').value,currency:document.getElementById('m-cur').value,due:document.getElementById('m-due').value,po:document.getElementById('m-po').value,nextAction:document.getElementById('m-next').value,notes:document.getElementById('m-notes').value,subtasks:[],done:false,createdAt:serverTimestamp()});
   await logAct('New task: '+title,'var(--accent)');closeModal();
 };
+
+// Auto-create account if it doesn't exist
+async function ensureAccountExists(clientName){
+  if(!clientName||clientName==='—')return;
+  const exists=state.accounts.find(a=>a.name.toLowerCase()===clientName.toLowerCase());
+  if(exists)return;
+  const colors=['#4f8cff','#7c5cfc','#22d98a','#f5c842','#ff9a3c','#ff5c7c','#1abc9c','#e8a0bf'];
+  await addDoc(collection(db,'accounts'),{
+    name:clientName,
+    color:CLIENT_COLORS[clientName]||colors[Math.floor(Math.random()*colors.length)],
+    emoji:CLIENT_EMOJI[clientName]||'🏢',
+    industry:'—',contact:'—',email:'—',
+    workstreams:['Pillar','Catman','Maintenance'],
+    progress:0,health:'on-track',
+    createdAt:serverTimestamp()
+  });
+}
 window.saveAcc=async function(){const name=document.getElementById('m-name').value.trim();if(!name)return;const cols=['#4f8cff','#7c5cfc','#22d98a','#f5c842','#ff9a3c','#ff5c7c'];await addDoc(collection(db,'accounts'),{name,industry:document.getElementById('m-ind').value,contact:document.getElementById('m-con').value,emoji:document.getElementById('m-em').value||'🏢',color:cols[Math.floor(Math.random()*cols.length)],workstreams:['Pillar','Catman','Maintenance'],progress:0,health:'on-track',createdAt:serverTimestamp()});await logAct('New account: '+name,'var(--green)');closeModal();};
 
 window.editTask=function(id){
@@ -958,12 +1025,46 @@ window.editTask=function(id){
 };
 
 window.updTask=async function(id){
+  const client=document.getElementById('m-client').value;
+  await ensureAccountExists(client);
   const title=document.getElementById('m-title').value.trim();if(!title)return;
   await updateDoc(doc(db,'tasks',id),{title,refCode:document.getElementById('m-code').value,client:document.getElementById('m-client').value,workstream:document.getElementById('m-ws').value,stage:document.getElementById('m-stage').value,amount:document.getElementById('m-amt').value,currency:document.getElementById('m-cur').value,due:document.getElementById('m-due').value,po:document.getElementById('m-po').value,done:document.getElementById('m-done').value==='true',nextAction:document.getElementById('m-next').value,notes:document.getElementById('m-notes').value});
   await logAct('Task updated: '+title,'var(--accent)');closeModal();
 };
 
 // ── EXCEL IMPORT / EXPORT ──
+window.exportAccounts=function(){
+  const ws=XLSX.utils.json_to_sheet(state.accounts.map(a=>({'Name':a.name,'Industry':a.industry,'Contact':a.contact,'Email':a.email,'Workstreams':(a.workstreams||[]).join(', '),'Health':a.health,'Progress':a.progress,'Color':a.color,'Emoji':a.emoji})));
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Accounts');
+  XLSX.writeFile(wb,'HussamCRM_Accounts_'+todayStr+'.xlsx');
+};
+
+window.importAccounts=async function(e){
+  const file=e.target.files[0];if(!file)return;
+  const data=await file.arrayBuffer();
+  const wb=XLSX.read(data);
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+  if(!rows.length)return alert('No data found.');
+  if(!confirm('Import '+rows.length+' accounts? Existing accounts with same name will be skipped.'))return;
+  const {writeBatch,doc:fbDoc}=await import('https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js');
+  let count=0;
+  const b=writeBatch(db);
+  for(const r of rows){
+    const name=String(r['Name']||r['name']||r['Client']||r['client']||'').trim();
+    if(!name)continue;
+    if(state.accounts.find(a=>a.name.toLowerCase()===name.toLowerCase()))continue;
+    const colors=['#4f8cff','#7c5cfc','#22d98a','#f5c842','#ff9a3c','#ff5c7c'];
+    const ref=fbDoc(collection(db,'accounts'));
+    b.set(ref,{name,industry:String(r['Industry']||r['industry']||'—'),contact:String(r['Contact']||r['contact']||'—'),email:String(r['Email']||r['email']||'—'),workstreams:String(r['Workstreams']||r['workstreams']||'Pillar, Catman, Maintenance').split(',').map(s=>s.trim()).filter(Boolean),health:String(r['Health']||'on-track'),progress:parseInt(r['Progress'])||0,color:String(r['Color']||colors[Math.floor(Math.random()*colors.length)]),emoji:String(r['Emoji']||'🏢'),createdAt:serverTimestamp()});
+    count++;
+  }
+  await b.commit();
+  await logAct('Imported '+count+' accounts','var(--green)');
+  alert('Imported '+count+' accounts!');
+  e.target.value='';
+};
+
 window.exportExcel=function(){
   const ws=XLSX.utils.json_to_sheet(state.tasks.map(t=>({'Ref Code':t.refCode,'Client':t.client,'Title':t.title,'Workstream':t.workstream,'Stage':t.stage,'Amount':t.amount,'Currency':t.currency,'PO Status':t.po,'Due Date':t.due,'Next Action':t.nextAction,'Notes':t.notes,'Done':t.done?'Yes':'No','Status':t.status})));
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Tasks');
@@ -972,6 +1073,7 @@ window.exportExcel=function(){
 
 window.importExcel=async function(e){
   const file=e.target.files[0];if(!file)return;
+  const importClientMap={};
   const data=await file.arrayBuffer();
   const wb=XLSX.read(data);
   let allRows=[];
@@ -1008,9 +1110,13 @@ window.importExcel=async function(e){
       const ref=fbDoc(collection(db,'tasks'));
       b.set(ref,{title,refCode:gv('code','ref code'),client,workstream:ws,stage:toStage(status),amount:gv('sales price','price'),currency:'EGP',po:gv('po','po status'),date:(gv('date of update','date')||'').split('T')[0]||todayStr,status,nextAction:'',notes:'',subtasks:[],done:status.toLowerCase().includes('done')});
       count++;
+      if(client) importClientMap[client]=client;
     }
     await b.commit();
   }
+  // Auto-create accounts for all imported clients
+  const importedClients=[...new Set(Object.values(importClientMap))].filter(Boolean);
+  for(const c of importedClients) await ensureAccountExists(c);
   await logAct('Imported '+count+' tasks from Excel','var(--green)');
   alert('Imported '+count+' tasks!');
   e.target.value='';
